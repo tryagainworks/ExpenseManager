@@ -1,0 +1,348 @@
+#include "frmreport.h"
+#include "ui_frmreport.h"
+
+frmReport::frmReport(QWidget *parent, GUI_INVOKE_PURPOSE intPurpose, QVector<QString> VecStr) :
+    QMainWindow(parent),
+    ui(new Ui::frmReport)
+{
+    ui->setupUi(this);
+    fnAppInti();
+    show();
+    fnInvokeFor(&intPurpose, &VecStr);
+}
+
+void frmReport::fnInvokeFor(GUI_INVOKE_PURPOSE* intPurpose, QVector<QString>* strLst)
+{
+    switch(*intPurpose)
+    {
+    case GUI_INVOKE_PURPOSE::TODAY_ENTRY:
+        fnFromTransaction();
+        break;
+    case GUI_INVOKE_PURPOSE::NOTHING:
+        ui->lblReportType->setText(strLst->at(0));
+        break;
+    }
+}
+
+void frmReport::fnFromTransaction()
+{
+    blnFromTransaction=true;
+    ui->cbo1Day->setCurrentIndex(0);
+    ui->optLast1Day->setChecked(true);
+    ui->optByAddedDate->setChecked(true);
+    ui->dtTranView->setDate(QDate::currentDate());
+    on_cmdShowReport_clicked();
+}
+
+void frmReport::fnAppInti()
+{
+    QScroller::grabGesture(ui->scrlRptFilters, QScroller::TouchGesture);
+    QScroller::grabGesture(ui->scrlRptTblView, QScroller::TouchGesture);
+    QScroller::grabGesture(ui->tblTranView, QScroller::TouchGesture);
+    ui->scrlRptTblView->setVisible(false);
+    ui->lblTotalAmt->setVisible(false);
+    ui->cmdEditRecord->setVisible(false);
+    ui->cmdDeleteRecord->setVisible(false);
+    ui->dtTranView->setDate(QDate::currentDate());
+    ui->optByPurchaseDate->setChecked(true);
+
+    ui->cbo1Day->clear();
+    ui->cbo5Days->clear();
+    ui->cbo1Week->clear();
+    ui->cbo1Month->clear();
+    ui->cbo1Year->clear();
+
+    for(int i=0; i<=15; i++)
+    {
+        ui->cbo1Day->addItem("Past " + QString::number(i) + " day(s)");
+    }
+
+    for(int i=5; i<=30; i+=5)
+    {
+        ui->cbo5Days->addItem("Past " + QString::number(i) + " day(s)");
+    }
+
+    for(int i=1; i<=4; i++)
+    {
+        ui->cbo1Week->addItem("Past " + QString::number(i) + " Week(s)");
+    }
+
+    for(int i=1; i<=12; i++)
+    {
+        ui->cbo1Month->addItem("Past " + QString::number(i) + " Months(s)");
+    }
+
+    for(int i=1; i<=5; i++)
+    {
+        ui->cbo1Year->addItem("Past " + QString::number(i) + " Years(s)");
+    }
+
+    ui->optLast1Day->setChecked(true);
+}
+
+frmReport::~frmReport()
+{
+    delete ui;
+}
+
+void frmReport::fnInitValues(QString strRptType)
+{
+    ui->lblReportType->setText(strRptType);
+}
+
+void frmReport::keyReleaseEvent(QKeyEvent *QK)
+{
+    bool blnEventHappened=false;
+    if((QK->key() == Qt::Key_Back) && QSysInfo::productType()=="android")
+    {
+        blnEventHappened=true;
+    }
+    else if(QK->key() == Qt::Key_Escape && QSysInfo::productType()!="android")
+    {
+        blnEventHappened=true;
+    }
+
+    if(blnEventHappened)
+    {
+        if(blnFromTransaction)
+        {
+            clsGlobal::fnHandleWindows(GUI::TRAN,GUI_INVOKE_PURPOSE::NOTHING);
+            return;
+        }
+
+        if(ui->scrlRptTblView->isVisible())
+        {
+            fnShowFilters();
+        }
+        else
+        {
+            clsGlobal::fnHandleWindows(GUI::STARTUP,GUI_INVOKE_PURPOSE::NOTHING);
+        }
+    }
+}
+
+void frmReport::fnViewTranDataByDate()
+{
+    QString strDateValue = ui->dtTranView->dateTime().toString("yyyy-MM-dd");
+
+    QString strDateField = "";
+    QString strQuery, strQuerySum ,strQueryCond;
+    if(ui->optByPurchaseDate->isChecked())
+    {
+        strDateField = "t.purchase_date";
+
+    }
+    else
+    {
+        strDateField = "t.added_on";
+    }
+
+    strQuerySum="select sum(t.amount) as amt";
+
+    strQuery="select t.any_desc, t.tbl_id, t.item_id, date(" + strDateField + ") as datef, ";
+    strQuery.append(" case t.item_id when 0 then t.multi_item_details else m.item_name end item_name, t.amount, t.qty,0, t.weight ");
+
+    strQueryCond.append(" from tbl_item_transaction t, tbl_item_master m where t.item_id = m.tbl_id ");
+    strQueryCond.append(" and (date(" + strDateField + ")<=date('"+ strDateValue +"') ");
+    strQueryCond.append(" and date(" + strDateField + ")>=date('" + strDateValue + "',");
+
+    QString strCboBoxValue="";
+    if(ui->optSelectedDate->isChecked())
+    {
+        strQueryCond.append(" '-0 days'))");
+    }
+    else if(ui->optLast1Day->isChecked())
+    {
+        strCboBoxValue= ui->cbo1Day->currentText();
+        strCboBoxValue = strCboBoxValue.mid(5,strCboBoxValue.indexOf(' ',5)-5);
+        strQueryCond.append(" '-" + strCboBoxValue + " days'))");
+    }
+    else if(ui->optLast5Days->isChecked())
+    {
+        strCboBoxValue= ui->cbo5Days->currentText();
+        strCboBoxValue = strCboBoxValue.mid(5,strCboBoxValue.indexOf(' ',5)-5);
+        strQueryCond.append(" '-" + strCboBoxValue + " days'))");
+    }
+    else if(ui->optLast1Week->isChecked())
+    {
+        strCboBoxValue= ui->cbo1Week->currentText();
+        strCboBoxValue = strCboBoxValue.mid(5,strCboBoxValue.indexOf(' ',5)-5);
+        strQueryCond.append(" '-" + QString::number(strCboBoxValue.toInt()*7) + " days'))");
+    }
+    else if(ui->optLast1Month->isChecked())
+    {
+        strCboBoxValue= ui->cbo1Month->currentText();
+        strCboBoxValue = strCboBoxValue.mid(5,strCboBoxValue.indexOf(' ',5)-5);
+        strQueryCond.append(" '-" + strCboBoxValue + " months'))");
+    }
+    else if(ui->optLast1Year->isChecked())
+    {
+        strCboBoxValue= ui->cbo1Year->currentText();
+        strCboBoxValue = strCboBoxValue.mid(5,strCboBoxValue.indexOf(' ',5)-5);
+        strQueryCond.append(" '-" + strCboBoxValue + " years'))");
+    }
+
+    strQueryCond.append(" order by " + strDateField + " desc ");
+    strQuery.append(strQueryCond);
+    strQuerySum.append(strQueryCond);
+
+    std::cerr<<strQuery.toStdString() << std::endl;
+    if(clsGlobal::objRs.exec(strQuery))
+    {
+        ui->tblTranView->clear();
+        objVecAllItems.clear();
+        ui->tblTranView->setRowCount(0);
+        ui->tblTranView->setColumnCount(5);
+        int intRow=0;
+        QStringList strHeaders;
+        strHeaders << (ui->optByPurchaseDate->isChecked() ? "Purchased On" : "Added On") << "Item" << "Amt" << "Qty" <<"Weig";
+        ui->tblTranView->setHorizontalHeaderLabels(strHeaders);
+        QString strItem="";
+        while(clsGlobal::objRs.next())
+        {
+            intRow=ui->tblTranView->rowCount();
+            ui->tblTranView->setRowCount(intRow+1);
+            ui->tblTranView->setItem(intRow,0,new QTableWidgetItem(clsGlobal::objRs.value("datef").toDate().toString("dd-MMM-yyyy")));
+            strItem=clsGlobal::objRs.value("item_name").toString();
+
+            if(strItem.contains("!~!"))
+            {
+                QStringList strLst = strItem.split("!~!");
+                strItem="";
+                for(QString str : strLst)
+                {
+                    str =str.trimmed();
+                    if(str!="")
+                    {
+                        int intIndex = str.indexOf("]");
+                        strItem.append(str.mid(intIndex+1, str.indexOf("!~!")-intIndex+1) + ", ");
+                    }
+                }
+            }
+
+            ui->tblTranView->setItem(intRow,1,new QTableWidgetItem(strItem));
+            ui->tblTranView->setItem(intRow,2,new QTableWidgetItem(clsGlobal::objRs.value("amount").toString()));
+            ui->tblTranView->setItem(intRow,3,new QTableWidgetItem(clsGlobal::objRs.value("qty").toString()));
+            ui->tblTranView->setItem(intRow,4,new QTableWidgetItem(clsGlobal::objRs.value("weight").toString()));
+            clsFilterData c(clsGlobal::objRs.value("item_id").toInt(),clsGlobal::objRs.value("tbl_id").toInt(),clsGlobal::objRs.value("item_name").toString(),"",0,clsGlobal::objRs.value("any_desc").toString());
+            objVecAllItems.push_back(c);
+        }
+        ui->tblTranView->resizeColumnsToContents();
+        ui->tblTranView->resizeRowsToContents();
+    }
+    else
+    {
+        std::cerr<<clsGlobal::objRs.lastError().text().toStdString() << std::endl;
+        QMessageBox::critical(0, qApp->tr("Query Error"), qApp->tr("Query Error on Table View"),QMessageBox::Cancel);
+    }
+    clsGlobal::objRs.clear();
+
+    if(clsGlobal::objRs.exec(strQuerySum))
+    {
+        while(clsGlobal::objRs.next())
+        {
+            ui->lblTotalAmt->setText("Total (in Rs.) : " + clsGlobal::objRs.value("amt").toString());
+        }
+    }
+    else
+    {
+        std::cerr<<clsGlobal::objRs.lastError().text().toStdString() << std::endl;
+        QMessageBox::critical(0, qApp->tr("Query Error"), qApp->tr("Query Error on Table View"),QMessageBox::Cancel);
+    }
+
+}
+
+void frmReport::on_optByAddedDate_clicked()
+{
+    //fnViewTranDataByDate();
+}
+
+void frmReport::on_optByPurchaseDate_clicked()
+{
+    //fnViewTranDataByDate();
+}
+
+void frmReport::on_dtTranView_userDateChanged(const QDate &date)
+{
+    //fnViewTranDataByDate();
+}
+
+void frmReport::on_cmdShowReport_clicked()
+{
+    if(ui->scrlRptFilters->isVisible())
+    {
+        ui->scrlRptFilters->setVisible(false);
+        ui->scrlRptTblView->setVisible(true);
+        ui->lblTotalAmt->setVisible(true);
+        ui->cmdEditRecord->setVisible(true);
+        ui->cmdDeleteRecord->setVisible(true);
+        ui->cmdShowReport->setText("Show Filters");
+        fnViewTranDataByDate();
+    }
+    else
+    {
+
+        fnShowFilters();
+    }
+}
+
+void frmReport::fnShowFilters()
+{
+    ui->tblTranView->clear();
+    ui->scrlRptFilters->setVisible(true);
+    ui->scrlRptTblView->setVisible(false);
+    ui->lblTotalAmt->setVisible(false);
+    ui->cmdShowReport->setText("Show Report");
+    ui->cmdEditRecord->setVisible(false);
+    ui->cmdDeleteRecord->setVisible(false);
+}
+
+
+void frmReport::on_cbo1Day_highlighted(const QString &arg1)
+{
+    ui->optLast1Day->setChecked(true);
+}
+
+void frmReport::on_cbo5Days_highlighted(int index)
+{
+    ui->optLast5Days->setChecked(true);
+}
+
+void frmReport::on_cbo1Week_highlighted(int index)
+{
+    ui->optLast1Week->setChecked(true);
+}
+
+void frmReport::on_cbo1Month_highlighted(int index)
+{
+    ui->optLast1Month->setChecked(true);
+}
+
+void frmReport::on_cbo1Year_highlighted(int index)
+{
+    ui->optLast1Year->setChecked(true);
+}
+
+void frmReport::on_cmdEditRecord_clicked()
+{
+    if(ui->tblTranView->rowCount()>0 && ui->tblTranView->currentRow()!=-1)
+    {
+        int intCurrRow = ui->tblTranView->currentRow();
+        QVector<QString> strLst;
+
+        strLst.push_back(ui->tblTranView->item(intCurrRow,2)->text());
+        strLst.push_back(ui->tblTranView->item(intCurrRow,3)->text());
+        strLst.push_back(ui->tblTranView->item(intCurrRow,4)->text());
+        strLst.push_back(QString::number(objVecAllItems.at(intCurrRow).intMastTblId));
+        strLst.push_back(QString::number(objVecAllItems.at(intCurrRow).intTranTblId));
+        strLst.push_back(objVecAllItems.at(intCurrRow).strItemName);
+        strLst.push_back(ui->tblTranView->item(intCurrRow,0)->text());
+        strLst.push_back(objVecAllItems.at(intCurrRow).strAnyDescOfTran);
+
+        clsGlobal::fnHandleWindows(GUI::TRAN,GUI_INVOKE_PURPOSE::TRAN_EDIT,strLst);
+    }
+    else
+    {
+        QMessageBox::information(0, qApp->tr("Edit Record"), qApp->tr("Select Record to edit"),QMessageBox::Ok);
+    }
+}

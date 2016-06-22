@@ -1,0 +1,61 @@
+#include "clsglobal.h"
+
+
+//clsGlobal* clsGlobal::objGlb = NULL;
+
+clsGlobal::clsGlobal()
+{
+
+}
+QSqlDatabase clsGlobal::objDbCon = {QSqlDatabase::addDatabase(NULL)};
+QSqlQuery clsGlobal::objRs= {QSqlQuery(NULL)};
+QMainWindow* clsGlobal::mWnd=NULL;
+
+QMainWindow *clsGlobal::fnHandleWindows(GUI intWhichGUIToShow, GUI_INVOKE_PURPOSE intPurpose, QVector<QString> VecStr)
+{
+    if(mWnd!=NULL)
+    {
+        mWnd->close();
+        delete mWnd;
+        mWnd=NULL;
+    }
+
+    switch(intWhichGUIToShow)
+    {
+    case GUI::LOGIN:
+        mWnd = new frmLogin(0, intPurpose,VecStr);
+        break;
+    case GUI::STARTUP:
+        mWnd = new frmStartUpNew(0, intPurpose,VecStr);
+        break;
+    case GUI::MAST:
+        mWnd = new frmSaveMaster(0, intPurpose,VecStr);
+        break;
+    case GUI::TRAN:
+        mWnd = new frmSaveTranNew(0, intPurpose,VecStr);
+        break;
+    case GUI::REPT:
+        mWnd = new frmReport(0, intPurpose,VecStr);
+        break;
+    case GUI::SETTINGS:
+        mWnd = new frmsettings(0, intPurpose,VecStr);
+        break;
+    case GUI::NOTHING:
+        mWnd=NULL;
+        clsDataBase objDB;
+        objDB.fnDBDisconnect();
+        break;
+    }
+    return mWnd;
+}
+
+
+/*
+clsGlobal* clsGlobal::self()
+{
+    if(objGlb==NULL)
+        objGlb = new clsGlobal();
+
+    return objGlb;
+}
+*/

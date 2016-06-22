@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/new/prefix1">
+        <file>All.png</file>
+        <file>button.png</file>
+        <file>button_disable.png</file>
+    </qresource>
+</RCC>

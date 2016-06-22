@@ -1,0 +1,190 @@
+#include "frmsavemaster.h"
+#include "ui_frmsavemaster.h"
+
+frmSaveMaster::frmSaveMaster(QWidget *parent, GUI_INVOKE_PURPOSE intPurpose, QVector<QString> VecStr) :
+    QMainWindow(parent),
+    ui(new Ui::frmSaveMaster)
+{
+    ui->setupUi(this);
+    fnAppInit();
+    show();
+    fnInvokeFor(&intPurpose, &VecStr);
+}
+
+frmSaveMaster::~frmSaveMaster()
+{
+    delete ui;
+}
+
+void frmSaveMaster::fnInvokeFor(GUI_INVOKE_PURPOSE* intPurpose, QVector<QString>* strLst)
+{
+
+}
+
+void frmSaveMaster::fnAppInit() {
+    QScroller::grabGesture(ui->scrlArea, QScroller::TouchGesture);
+    QScroller::grabGesture(ui->lstExistingData, QScroller::TouchGesture);
+    fnLoadItemTypes();
+}
+
+void frmSaveMaster::fnLoadItemTypes() {
+    QString strQuery="select type_name, tbl_id from tbl_item_type order by tbl_id";
+
+    std::cerr<<strQuery.toStdString() << std::endl;
+    if(clsGlobal::objRs.exec(strQuery)) {
+        objHashItemTypeByTypeId.clear();
+        int iCount=0;
+        while(clsGlobal::objRs.next()) {
+            ui->cboItemType->addItem(clsGlobal::objRs.value("type_name").toString());
+            objHashItemTypeByTypeId.insert(clsGlobal::objRs.value("tbl_id").toInt(),iCount);
+            objHashItemTypeByIndex.insert(iCount, clsGlobal::objRs.value("tbl_id").toInt());
+            iCount++;
+        }
+        ui->cboItemType->setCurrentIndex(0);
+    } else {
+        std::cout<<clsGlobal::objRs.lastError().text().toStdString() << std::endl;
+        QMessageBox::critical(0, qApp->tr("Item type fetch error"), qApp->tr("Item type fetch error."),QMessageBox::Cancel);
+    }
+    clsGlobal::objRs.clear();
+}
+
+void frmSaveMaster::fnResetValues() {
+    ui->txtItemMast->clear();
+    ui->txtItemDesc->clear();
+    intEditItemId=-1;
+    blnIsNew=true;
+    ui->cmdSaveMaster->setText("Save New Master Data");
+    ui->lstExistingData->clear();
+    ui->txtItemMast->setFocus();
+}
+
+void frmSaveMaster::keyReleaseEvent(QKeyEvent *QK) {
+    bool blnEventHappened=false;
+    if((QK->key() == Qt::Key_Back) && QSysInfo::productType()=="android") {
+        blnEventHappened=true;
+    } else if(QK->key() == Qt::Key_Escape && QSysInfo::productType()!="android") {
+        blnEventHappened=true;
+    }
+
+    if(blnEventHappened) {
+        clsGlobal::fnHandleWindows(GUI::STARTUP,GUI_INVOKE_PURPOSE::NOTHING);
+    }
+}
+
+void frmSaveMaster::fnSaveNewData() {
+    int intTblId=0;
+    if(clsGlobal::objRs.exec("select ifnull(max(tbl_id),0) + 1 as \"new_id\"  from tbl_item_master")) {
+        if(clsGlobal::objRs.next()) {
+            intTblId = clsGlobal::objRs.value("new_id").toInt();
+        }
+    } else
+    {
+        QMessageBox::critical(0, qApp->tr("Query Error"), qApp->tr("Query Error on Table View"),QMessageBox::Cancel);
+        return;
+    }
+    QString strQuery="insert into tbl_item_master (tbl_id, item_name, item_desc, type_id) values (" + QString::number(intTblId) + ",'" + ui->txtItemMast->text() + "','" + ui->txtItemDesc->text() + "'," + QString::number(objHashItemTypeByIndex.find(ui->cboItemType->currentIndex()).value()) + ")";
+
+    std::cerr<<strQuery.toStdString() << std::endl;
+    if(clsGlobal::objRs.exec(strQuery)) {
+        QMessageBox::information(0, qApp->tr("Data Saved."), qApp->tr("Data Saved."),QMessageBox::Ok);
+        fnResetValues();
+    } else {
+        std::cout<<clsGlobal::objRs.lastError().text().toStdString() << std::endl;
+        QMessageBox::critical(0, qApp->tr("Data Not Saved."), qApp->tr("Data Not Saved."),QMessageBox::Cancel);
+    }
+    clsGlobal::objRs.clear();
+}
+
+
+void frmSaveMaster::fnSaveExistingData() {
+    int intTblId=intEditItemId;
+
+    QString strQuery="update tbl_item_master set item_name = '" + ui->txtItemMast->text() + "', item_desc ='"+ui->txtItemDesc->text()+"',";
+    strQuery.append(" updated_on = date(CURRENT_TIMESTAMP, 'localtime'), type_id = " + QString::number(objHashItemTypeByIndex.find(ui->cboItemType->currentIndex()).value()));
+    strQuery.append(" where tbl_id=" + QString::number(intTblId));
+
+    std::cerr<<strQuery.toStdString() << std::endl;
+    if(clsGlobal::objRs.exec(strQuery)) {
+        QMessageBox::information(0, qApp->tr("Data Updated"), qApp->tr("Data Updated"),QMessageBox::Ok);
+        fnResetValues();
+    } else {
+        std::cout<<clsGlobal::objRs.lastError().text().toStdString() << std::endl;
+        QMessageBox::critical(0, qApp->tr("Data Not Updated"), qApp->tr("Data Not Updated"),QMessageBox::Cancel);
+    }
+    clsGlobal::objRs.clear();
+}
+
+void frmSaveMaster::on_cmdSaveMaster_clicked()
+{
+    if(ui->txtItemMast->text().trimmed()=="") {
+        QMessageBox::critical(0, qApp->tr("Save Error"), qApp->tr("Item name can't be empty"),QMessageBox::Cancel);
+        return;
+    }
+
+    if(blnIsNew) {
+        fnSaveNewData();
+    } else {
+        fnSaveExistingData();
+    }
+}
+
+void frmSaveMaster::on_txtItemMast_textEdited(const QString &arg1)
+{
+    fnFillTableData(ui->txtItemMast->text(), ui->lstExistingData, ui->lblTotalMatchFound);
+    ui->txtItemDesc->setText(ui->txtItemMast->text());
+}
+
+void frmSaveMaster::fnFillTableData(QString strCondition, QListWidget* lstBox, QLabel* lbl) {
+
+    if(strCondition.trimmed()=="") {
+        lstBox->clear();
+        return;
+    }
+
+    QString str="";
+
+    str ="";
+    str.append("select * from tbl_item_master where item_name like '%" );
+    str.append(strCondition);
+    str.append("%'");
+    if(clsGlobal::objRs.exec(str))
+    {
+        str="";
+        int jCount=0;
+        lstBox->clear();
+        objVecAllItems.clear();
+        while(clsGlobal::objRs.next()) {
+            jCount++;
+            lstBox->addItem(QString::number(jCount) + ") " + clsGlobal::objRs.value("item_name").toString());
+            clsFilterData c(clsGlobal::objRs.value("tbl_id").toInt(),0, clsGlobal::objRs.value("item_name").toString(), clsGlobal::objRs.value("item_desc").toString(),clsGlobal::objRs.value("type_id").toInt());
+            objVecAllItems.append(c);
+        }
+        lbl->setText(QString::number(jCount) + " Existing Item(s) Found");
+    } else {
+        QMessageBox::critical(0, qApp->tr("Query Error"), qApp->tr("Query Error on Table View"),QMessageBox::Cancel);
+    }
+
+    clsGlobal::objRs.clear();
+}
+
+void frmSaveMaster::on_lstExistingData_itemDoubleClicked(QListWidgetItem *item) {
+    if(ui->lstExistingData->count()>0) {
+        fnSelectDataForEdit();
+    }
+}
+
+void frmSaveMaster::fnSelectDataForEdit() {
+    clsFilterData obj = objVecAllItems.at(ui->lstExistingData->currentRow());
+    intEditItemId=obj.intMastTblId;
+    ui->txtItemMast->setText(obj.strItemName);
+    ui->txtItemDesc->setText(obj.strItemDesc);
+    ui->cboItemType->setCurrentIndex(objHashItemTypeByTypeId.find(obj.intItemTypeID).value());
+    blnIsNew=false;
+    ui->cmdSaveMaster->setText("Update Master Data");
+}
+
+void frmSaveMaster::on_lstExistingData_clicked(const QModelIndex &index)
+{
+    int intTypeId = objVecAllItems.at(ui->lstExistingData->currentRow()).intItemTypeID;
+    ui->cboItemType->setCurrentIndex(objHashItemTypeByTypeId.find(intTypeId).value());
+}

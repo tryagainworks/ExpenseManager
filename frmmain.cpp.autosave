@@ -1,0 +1,169 @@
+#include "frmmain.h"
+#include "ui_frmmain.h"
+
+
+frmmain::frmmain(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::frmmain)
+{
+    ui->setupUi(this);
+    fnAppInti();
+}
+
+frmmain::~frmmain()
+{
+    if(objDbCon.isOpen()){
+        objDbCon.close();
+    }
+
+    QDir ddir(strDbStorePath);
+    if(ddir.exists())
+    {
+        QFile sfile(strDbStorePath + (QSysInfo::productType()=="android" ? "/" : "") + strDatabaseName);
+        QString strFile = strDbStorePath + (QSysInfo::productType()=="android" ? "/" : "") + strDatabaseName + "_" + QDateTime::currentDateTime().toString("ddMMMyyyy_hhmmssAP") + ".backup";
+        sfile.copy(strFile);
+        QFile::setPermissions(strFile,QFile::WriteOwner | QFile::ReadOwner);
+    }
+    delete ui;
+}
+
+void frmmain::fnAppInti(){
+    if(QSysInfo::productType()=="android"){
+        strDatabaseName = "emdb";
+        strDbStorePath="/sdcard/expence_manager";
+        fnConnectDbForAndroid();
+    }
+    else{
+        strDatabaseName = "emdb";
+        strDbStorePath="D:\\QTApps\\Expense_Manager\\";
+        fnConnectDbForNonAndroid();
+    }
+
+    /*smooth scroll*/
+    QScroller::grabGesture(ui->scrlArea, QScroller::LeftMouseButtonGesture);
+
+    objRs = {QSqlQuery(objDbCon)};
+
+}
+
+void frmmain::on_cmdEntry_2_clicked()
+{
+    clsGuiHandler obj;
+    obj.fnHandleWindows(GUI::TRAN);
+
+    fnGoBackToChooseItems();
+    fnViewTranDataByDate();
+}
+
+void frmSaveTran::fnGoBackToChooseItems(){
+    ui->txtQty->setText("0");
+    ui->txtAmt->setText("0");
+    ui->txtWeight->setText("0");
+    objHashSelectedItems.clear();
+    objVecSelectedItems.clear();
+    ui->lstChooseItemTran->clear();
+    ui->txtChooseItem->clear();
+    ui->lstExistingDataTran->clear();
+    ui->scrlArea->setVisible(false);
+    ui->fraChooseItem->setVisible(true);
+    ui->txtChooseItem->setFocus();
+    fnViewTranDataByDate();
+}
+
+void frmmain::on_cmdSummaryReport_2_clicked()
+{
+    ui->lblReportType->setText("Summary Report");
+    ui->scrlArea->setVisible(false);
+    ui->fraReport->setVisible(true);
+}
+
+void frmmain::on_cmdDetailReport_2_clicked()
+{
+    ui->lblReportType->setText("Detail Report");
+    ui->scrlArea->setVisible(false);
+    ui->fraReport->setVisible(true);
+}
+
+void frmmain::keyReleaseEvent(QKeyEvent *QK){
+    bool blnEventHappened=false;
+    if((QK->key() == Qt::Key_Back) && QSysInfo::productType()=="android"){
+        blnEventHappened=true;
+    }else if(QK->key() == Qt::Key_Escape && QSysInfo::productType().startsWith("win")){
+        blnEventHappened=true;
+    }
+
+    if(blnEventHappened){
+        if(ui->scrlArea->isVisible()){
+            this->close();
+        }else if(ui->fraEntryTrans->isVisible()){
+            ui->fraEntryTrans->setVisible(false);
+            ui->fraChooseItem->setVisible(true);
+            fnGoBackToChooseItems();
+        }else if(ui->fraEntryMaster->isVisible() || ui->fraReport->isVisible() || ui->fraChooseItem->isVisible()){
+            ui->fraEntryMaster->setVisible(false);
+            ui->fraReport->setVisible(false);
+            ui->fraChooseItem->setVisible(false);
+            ui->scrlArea->setVisible(true);
+        }
+    }
+}
+
+void frmmain::on_cmdExit_clicked()
+{
+    this->close();
+}
+
+void frmmain::fnConnectDbForAndroid(){
+    objDbCon = QSqlDatabase::addDatabase("QSQLITE");
+    QFile sfile("assets:\\" + strDatabaseName);
+
+    QDir ddir(strDbStorePath);
+    if(!ddir.exists())
+    {
+        ddir.mkdir(strDbStorePath);
+    }
+    QFile dfile(strDbStorePath + "/" + strDatabaseName);
+    if (!dfile.exists())
+    {
+        sfile.copy(strDbStorePath + "/" + strDatabaseName);
+        QFile::setPermissions(strDbStorePath + "/" + strDatabaseName,QFile::WriteOwner | QFile::ReadOwner);
+    }
+    objDbCon.setDatabaseName(strDbStorePath + "/" + strDatabaseName);
+    if (!objDbCon.open()) {
+        QMessageBox::critical(0, qApp->tr("Cannot open database"),
+                              qApp->tr("Unable to establish a database connection.\n"
+                                       "This example needs SQLite support. Please read "
+                                       "the Qt SQL driver documentation for information how "
+                                       "to build it.\n\n"
+                                       "Click Cancel to exit."), QMessageBox::Cancel);
+        return;
+    }else{
+        //qd.close();
+        //QMessageBox::information(0, qApp->tr("Database Opened Successfully"),qApp->tr("Database Opened Successfully"),QMessageBox::Ok);
+    }
+}
+
+void frmmain::fnConnectDbForNonAndroid(){
+    objDbCon = QSqlDatabase::addDatabase("QSQLITE");
+    objDbCon.setDatabaseName(strDbStorePath + strDatabaseName);
+    if (!objDbCon.open()) {
+        QMessageBox::critical(0, qApp->tr("Cannot open database"),
+                              qApp->tr("Unable to establish a database connection.\n"
+                                       "This example needs SQLite support. Please read "
+                                       "the Qt SQL driver documentation for information how "
+                                       "to build it.\n\n"
+                                       "Click Cancel to exit."), QMessageBox::Cancel);
+        return;
+    }else{
+        //qd.close();
+        //QMessageBox::information(0, qApp->tr("Database Opened Successfully"),qApp->tr("Database Opened Successfully"),QMessageBox::Ok);
+    }
+}
+
+void frmmain::on_cmdMasterEntry_clicked()
+{
+    ui->scrlArea->setVisible(false);
+    ui->fraEntryMaster->setVisible(true);
+    ui->txtItemMast->clear();
+    ui->txtItemMast->setFocus();
+}

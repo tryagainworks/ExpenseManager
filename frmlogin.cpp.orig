@@ -1,0 +1,55 @@
+#include "frmlogin.h"
+#include "ui_frmlogin.h"
+#include "clsglobal.h"
+
+frmLogin::frmLogin(QWidget *parent, GUI_INVOKE_PURPOSE intPurpose,QVector<QString> VecStr) :
+    QMainWindow(parent),
+    ui(new Ui::frmLogin)
+{
+    ui->setupUi(this);
+    show();
+    fnInvokeFor(&intPurpose, &VecStr);
+}
+
+frmLogin::~frmLogin()
+{
+    delete ui;
+}
+
+void frmLogin::fnInvokeFor(GUI_INVOKE_PURPOSE* intPurpose, QVector<QString>* strLst)
+{
+
+}
+
+void frmLogin::on_cmdGo_clicked()
+{
+    fnDoLogin();
+}
+
+void frmLogin::keyReleaseEvent(QKeyEvent *QK)
+{
+    bool blnEventHappened=false;
+    if((QK->key() == Qt::Key_Back) && QSysInfo::productType()=="android") {
+        blnEventHappened=true;
+    } else if(QK->key() == Qt::Key_Escape && QSysInfo::productType()!="android") {
+        blnEventHappened=true;
+    }
+
+    if(blnEventHappened) {
+        clsGlobal::fnHandleWindows(GUI::NOTHING,GUI_INVOKE_PURPOSE::NOTHING);
+    }
+}
+
+void frmLogin::on_txtPwd1_textEdited(const QString &arg1)
+{
+    //fnDoLogin();
+}
+
+void frmLogin::fnDoLogin() {
+    if(ui->txtPwd1->text()=="linux") {
+        ui->txtPwd1->clearFocus();
+        clsGlobal::fnHandleWindows(GUI::STARTUP,GUI_INVOKE_PURPOSE::NOTHING);
+    } else {
+        clsGlobal::fnHandleWindows(GUI::NOTHING,GUI_INVOKE_PURPOSE::NOTHING);
+    }
+}
